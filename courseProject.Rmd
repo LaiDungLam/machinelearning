@@ -1,0 +1,134 @@
+---
+title: "Machine Learning in Classifying Dumbbell Lifting"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+header-includes:
+- \usepackage{setspace}
+- \usepackage{paralist}
+- \let\itemize\compactitem
+geometry: margin=1cm
+---
+## Introduction  
+In physical training, it is important to identify false from correct poses. A study is carried with a goal to identify correct dumbbell lifting activities and its incorrect versions. There are six males in the study and they were attached with sensors to arms, forearms, belt, and their dumbbell. Then they repeatedly simulated one correct dumbbell lifting and four other false versions classified as:
+
+- Class A: exactly according to the specification
+
+- Class B: throwing elbows to the front
+
+- Class C: lifting the dumbbell only halfway 
+
+- Class D: lowering the dumbbell only halfway 
+
+- Class E: throwing the hip to the front
+
+The purpose of this paper is to build a model to detect and labels dumbbell lifting activites. The model is to be built from a data set called training data which contains the data provided by the four sensors attached to six subjects. Then there is testing data serving as a validation of the model.
+
+## Model of Choice
+The purpose of this paper is to classify correct dumbbell lifting from its other four false versions. This is a problem of classification on variable with five levels of factors: A, B, C, D, E.
+
+The Gradient Boosting Machines (gbm) shall be used to train a predicting model. This model is chosen because it can support classification trees, which is one of the best algorithm in dealing with classification problems. Furthermore, it supports up to 1024 factor levels.
+
+## Data Processing  
+Read in training and testing dataset: 
+```{r import-data, cache = TRUE}
+training <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"))
+testing <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"))
+```
+
+The outcomes to which the model is going to be trained to classify are stored in the variable classe: 
+```{r}
+unique(training$classe)
+```
+Such that class A labels correct dumbbell lifting while the other classes are false versions, corresponding the the five classes defined in the introduction. 
+ 
+#### The variables of choice 
+The GBM model is going to be applied to train a model of classification. But the training data is enormous with 19,622 observations and 160 variables (see the structure of the training data in the Appendix). Apply the GBM to this original enormous data is not at all feasible; its dimension is subjected to be reduced.   
+
+Also from structure of the training data in the Appendix, there are many variables with many NA values or do not contain values at all. Such variables are useless for the purpose of training so they should be removed. Moreover, the first seven variables contain no informative data about the action of lifting dumbbells collected from the sensors. Thus they are not useful in classifying dumbbell lifting activities and thus shall be removed as well. 
+
+```{r}
+# Remove variables containg too many NA and/ore empty variables 
+training1 <- training
+training1 <- apply(training1, 2, function(x) gsub("^$|^ $", NA, x))
+NAamount <- apply(training1, 2, function(x) sum(is.na(x)))
+NAamount <- as.data.frame(NAamount)
+NAamount <- as.character(NAamount$NAamount)
+NAIndex <- grep("0", NAamount)
+training1 <- as.data.frame(training1)
+training1 <- training1[, NAIndex]
+# Removed the first seven variables 
+training1 <- training1[, -c(1:7)]
+#Set variables to their proper data type 
+classe <- training1[, 53]
+training1 <- training1[, 1:52]
+training1 <- apply(training1, 2, function(x) as.numeric(x))
+training1 <- as.data.frame(training1)
+classe <- as.data.frame(as.factor(classe))
+training1 <- cbind(training1, classe)
+colnames(training1)[53] <- "classe"
+```
+
+Now the training dataset is in a good shape in that all of them contain values that might become good predictors. However, there are still too many variables remained. Therefore, let's check the correlation between them all first. 
+
+```{r message=FALSE}
+library(lares)
+corr_cross(training1)
+```
+
+Let's understand the meaning of the variables in the data set first.
+
+There are sensors attached to the participants' arm, forearm, belt, and their dumbbell. Each sensor measures the roll, pitch, and yaw of the participants' body parts and their dumbbell. These are the original measurements. Other measurements are derived from them that are total_acceleration and gyro, acceleration, and magnet in x, y, z axes. 
+
+From this understanding, it is not a surprise to see from the above correlation charts that all variables measuring total acceleration, gyro, acceleration, and magnet of each of the sensors are highly correlated with each other. Thus, all variables whose names containing acceleration, gyro, and magnet are removed from the training data, keeping the original measurements are enough. 
+```{r}
+removedVar <- grep("accel|magnet|gyros", names(training1))
+remainedVar <- names(training1)[-removedVar]
+training1 <- training1[, remainedVar]
+```
+
+The remaining variables in the training data is: 
+```{r}
+str(training1)
+```
+
+### Model Training
+Until now, the training data is reduced from 60 variables to only 13 variables, with the classe variable as the outcome. That is a huge dimension reduction. Let's train a model on it. 
+```{r important-computing, cache=TRUE, message=FALSE}
+library(caret)
+modFit <- train(classe ~., data=training1, method="gbm", verbose = F )
+modFit
+```
+
+
+#### The expected out of sample error
+Since there are so many observations in the training data - 19,622, and all of covariances contains 19,622 observations. It is expected that the model has a high accuracy rate. In fact, this can be seen from the model summary that the accurate rate at interaction level 3 is around 92% or otherwise the in sample error rate is 8%. 
+
+Therefore, I believe that the expected out of sample error shall be more or less around 8%. 
+
+## Validation 
+### Testing data processing 
+The testing data do not have the classe variable as the dumbbell activity labels. Except for classe variable,  the testing data contains the all other variables in the training data used for training. 
+```{r}
+remainedVarTest <- remainedVar[remainedVar != "classe"]
+
+testing <- testing[, remainedVarTest]
+str(testing)
+```
+
+
+### Validation 
+Let's apply the trained model to the testing data.  
+```{r message=FALSE}
+prediction <- predict(modFit, testing)
+prediction
+```
+
+This is exactly with the answers provided in the Quiz. 
+
+## Appendix 
+The structure of the original training data set: 
+```{r}
+str(training)
+```
