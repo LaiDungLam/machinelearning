@@ -94,38 +94,31 @@ str(training1)
 ```
 
 ### Model Training
-Until now, the training data is reduced from 60 variables to only 13 variables, with the classe variable as the outcome. That is a huge dimension reduction. Let's train a model on it. 
+Until now, the training data is reduced from 60 variables to only 13 variables, with the classe variable as the outcome. That is a huge dimension reduction. 
+
+To get out of sample error, the training data is spli into training data containing 75% of the original training data and a testing data containing the rest 25%. Let's train a model on it.
+
+ 
 ```{r important-computing, cache=TRUE, message=FALSE}
 library(caret)
-modFit <- train(classe ~., data=training1, method="gbm", verbose = F )
+inTrain <- createDataPartition(training1$classe, p=0.75, list=F)
+trainData <- training1[inTrain, ]
+testData <- training1[-inTrain, ]
+modFit <- train(classe ~., data=trainData, method="gbm", verbose = F )
 modFit
 ```
 
 
-#### The expected out of sample error
-Since there are so many observations in the training data - 19,622, and all of covariances contains 19,622 observations. It is expected that the model has a high accuracy rate. In fact, this can be seen from the model summary that the accurate rate at interaction level 3 is around 92% or otherwise the in sample error rate is 8%. 
-
-Therefore, I believe that the expected out of sample error shall be more or less around 8%. 
-
-## Validation 
-### Testing data processing 
-The testing data do not have the classe variable as the dumbbell activity labels. Except for classe variable,  the testing data contains the all other variables in the training data used for training. 
-```{r}
-remainedVarTest <- remainedVar[remainedVar != "classe"]
-
-testing <- testing[, remainedVarTest]
-str(testing)
+#### Cross-Validataion - The expected out of sample error
+Let's cross-validate the train model by applying it to the testData data. 
+```{r, message=FALSE}
+library(caret)
+prediction1 <- predict(modFit, newdata=testData[, -13])
+confusionMatrix(prediction1, testData$classe)
 ```
 
+From the statistics above, the expected out of sample error is in the interval [0.928, 0.94]
 
-### Validation 
-Let's apply the trained model to the testing data.  
-```{r message=FALSE}
-prediction <- predict(modFit, testing)
-prediction
-```
-
-This is exactly with the answers provided in the Quiz. 
 
 ## Appendix 
 The structure of the original training data set: 
